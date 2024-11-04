@@ -42,8 +42,14 @@ class StagePerformance:
         dp_deg, tp_deg = intra_strategy
         execution_costs = []
         for dp_id, h_mbs in enumerate(hetero_bs):
+            # Solution 3
+            if h_mbs == 0 or h_mbs > 4:
+                continue
             device_type = device_types[(len(device_types) // dp_deg) * dp_id]
+            # Solution 1
             comb_h_mbs = [2 ** i for i in range(int(math.log2(h_mbs)), -1, -1) if h_mbs & 2 ** i]
+            # comb_h_mbs = [2 ** i for i in range(int(math.log2(h_mbs)) if h_mbs != 0 else 0, -1, -1) if h_mbs & 2 ** i]
+            print(f'comb_h_mbs: {comb_h_mbs}')
             inner_dp_cost = 0.
             for h_mbs_slice in comb_h_mbs:
                 inner_dp_cost += self._get_execution_time(device_type, key=f'tp{tp_deg}_bs{h_mbs_slice}')

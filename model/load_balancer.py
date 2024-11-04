@@ -46,7 +46,13 @@ class LayerLoadBalancer:
                 data_load_balancer = DataLoadBalancer(self.profile_data, self.model_config)
                 hetero_bs = data_load_balancer.partition_data(device_types, strategy, gbs // batches)
                 for h_mbs in hetero_bs:
-                    comb_h_mbs = [2 ** j for j in range(int(math.log2(h_mbs)), -1, -1) if h_mbs & 2 ** j]
+                    # Solution 3
+                    if h_mbs == 0 or h_mbs > 4:
+                        continue
+                    # Solution 1
+                    comb_h_mbs = [2 ** i for i in range(int(math.log2(h_mbs)), -1, -1) if h_mbs & 2 ** i]
+                    # comb_h_mbs = [2 ** i for i in range(int(math.log2(h_mbs)) if h_mbs != 0 else 0, -1, -1) if h_mbs & 2 ** i]
+                    print(f'comb_h_mbs: {comb_h_mbs}')
                     for slice_h_mbs in comb_h_mbs:
                         profile_memory = self.profile_data[f'DeviceType.{device_types[0]}'][f'tp{tp_deg}_bs{slice_h_mbs}']['memory']
                         cur_stage_memory_demand += sum(profile_memory[start_layer_id:end_layer_id]) * mem_coef
@@ -153,19 +159,27 @@ class DataLoadBalancer:
         return sum(self.profile_data[f'DeviceType.{device_type}'][key]['time']['layer-computes'])
 
     def partition_data(self, device_types: List[str], intra_strategy: Tuple[int, int], bs: int) -> List[int]:
+        print("device_types:", device_types)
+        print("intra_strategy:", intra_strategy)
         dp_deg, tp_deg = intra_strategy
 
         inner_stage_performance = []
         group_size = len(device_types) // dp_deg
+        print("group_size:", group_size)
         for i in range(dp_deg):
             dp_group = device_types[i * group_size: (i + 1) * group_size]
             profile_cost = self._get_execution_time(dp_group[0], f'tp{tp_deg}_bs1')
+            print("profile_cost:", profile_cost)
             inner_stage_performance.append(1. / profile_cost)
+            print("inner_stage_performance:", inner_stage_performance)
 
         inner_total_performance = sum(inner_stage_performance)
         inner_stage_compute_performance = [s_performance / inner_total_performance
                                            for s_performance in inner_stage_performance]
-
+        print("inner_stage_compute_performance:", inner_stage_compute_performance)
+        print("bs:", bs)
+        
+        # Solution 1
         hetero_bs = [int(bs * c_performance) for c_performance in inner_stage_compute_performance]
         remainder = bs - sum(hetero_bs)
 
@@ -175,7 +189,41 @@ class DataLoadBalancer:
         sorted_indices = sorted(range(len(remainder_ratio)), key=lambda i: remainder_ratio[i], reverse=True)
         for i in range(remainder):
             hetero_bs[sorted_indices[i]] += 1
-
+        
+        # Solution 2 for math domain error    
+        # num_stages = dp_deg
+        # # Step 1: Initialize each hetero_bs element to 1
+        # hetero_bs = [1] * num_stages
+        # remaining_bs = bs - num_stages
+        
+        # if remaining_bs < 0:
+        #     raise ValueError("Not enough batch size to assign at least 1 to each stage.")
+        
+        # # Step 1: Initialize each hetero_bs element to 1 to ensure no zeros
+        # hetero_bs = [1] * num_stages
+        # remaining_bs = bs - num_stages
+        
+        # # Step 2: Calculate the ideal allocations based on performance
+        # ideal_allocations = [c_performance * bs for c_performance in inner_stage_compute_performance]
+        
+        # # Step 3: Calculate fractional parts after assigning 1 to each
+        # additional_allocations = [alloc - 1 for alloc in ideal_allocations]
+        # fractional_parts = [alloc - int(alloc) for alloc in additional_allocations]
+        
+        # # Step 4: Sort indices based on fractional parts in descending order
+        # sorted_indices = sorted(range(num_stages), key=lambda i: fractional_parts[i], reverse=True)
+        
+        # # Step 5: Distribute the remaining_bs by cycling through sorted_indices
+        # for i in range(remaining_bs):
+        #     index = sorted_indices[i % num_stages]
+        #     hetero_bs[index] += 1
+        
+        # # Final Validation: Ensure the sum does not exceed bs
+        # total_bs = sum(hetero_bs)
+        # if total_bs > bs:
+        #     raise ValueError("The sum of hetero_bs exceeds bs; please adjust the batch sizes.")
+        
+        print("hetero_bs:", hetero_bs)
         return hetero_bs
 
 
