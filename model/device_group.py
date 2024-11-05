@@ -46,10 +46,7 @@ class StagePerformance:
             if h_mbs == 0 or h_mbs > 4:
                 continue
             device_type = device_types[(len(device_types) // dp_deg) * dp_id]
-            # Solution 1
-            comb_h_mbs = [2 ** i for i in range(int(math.log2(h_mbs)), -1, -1) if h_mbs & 2 ** i]
-            # comb_h_mbs = [2 ** i for i in range(int(math.log2(h_mbs)) if h_mbs != 0 else 0, -1, -1) if h_mbs & 2 ** i]
-            print(f'comb_h_mbs: {comb_h_mbs}')
+            comb_h_mbs = [2 ** i for i in range(int(math.log2(h_mbs)) if h_mbs != 0 else 0, -1, -1) if h_mbs & 2 ** i]
             inner_dp_cost = 0.
             for h_mbs_slice in comb_h_mbs:
                 inner_dp_cost += self._get_execution_time(device_type, key=f'tp{tp_deg}_bs{h_mbs_slice}')
@@ -76,7 +73,10 @@ class StagePerformance:
                 hetero_bs = data_load_balancer.partition_data(device_types, intra_strategy, gbs // batches)
 
                 execution_costs = self._get_hetero_device_group_execution_time(device_types, intra_strategy, hetero_bs)
-                stage_performance.append(1. / max(execution_costs))
+                cur_performance = 0
+                if max(execution_costs) != 0:
+                    cur_performance = 1. / max(execution_costs)
+                stage_performance.append(cur_performance)
             else:
                 device_type = device_types[0]
                 profile_cost = self._get_execution_time(device_type, key=f'tp{tp_deg}_bs{bs}')
