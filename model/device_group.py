@@ -42,7 +42,6 @@ class StagePerformance:
         dp_deg, tp_deg = intra_strategy
         execution_costs = []
         for dp_id, h_mbs in enumerate(hetero_bs):
-            # Solution 3
             if h_mbs == 0 or h_mbs > 4:
                 continue
             device_type = device_types[(len(device_types) // dp_deg) * dp_id]

@@ -155,11 +155,8 @@ class HeteroCostEstimator(CostEstimator):
         dp_deg, tp_deg = intra_strategy
         execution_costs = []
         for dp_id, h_mbs in enumerate(hetero_bs):
-            # Solution 3
-            if h_mbs == 0 or h_mbs > 4:
+            if h_mbs == 0:
                 continue
-            # if h_mbs == 0:
-            #     continue
 
             device_type = device_types[(len(device_types) // dp_deg) * dp_id]
             comb_h_mbs = [2 ** i for i in range(int(math.log2(h_mbs)), -1, -1) if h_mbs & 2 ** i]
