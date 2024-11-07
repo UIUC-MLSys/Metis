@@ -27,13 +27,28 @@ if [ "${MODEL_NAME}" == "GPT" ]; then
     VOCAB_SIZE=51200
     ATTENTION_HEAD_SIZE=32
   fi
-
   model_specific_options="
                 --hidden_size=${HIDDEN_SIZE}
                 --sequence_length=${SEQUENCE_LENGTH}
                 --vocab_size=${VOCAB_SIZE}
               "
 fi
+
+if [ "${MODEL_NAME}" == "Llama" ]; then
+  if [ "${MODEL_SIZE}" == "80B" ] ; then
+    HIDDEN_SIZE=8192
+    SEQUENCE_LENGTH=1024
+    NUM_LAYERS=82
+    VOCAB_SIZE=128000
+    ATTENTION_HEAD_SIZE=64
+  fi
+  model_specific_options="
+                --hidden_size=${HIDDEN_SIZE}
+                --sequence_length=${SEQUENCE_LENGTH}
+                --vocab_size=${VOCAB_SIZE}
+              "
+fi
+
 
 HOST_FILE_PATH="${HOME_DIR}/hostfile"
 CLUSTER_INFO_FILE_PATH="${HOME_DIR}/clusterfile.json"

@@ -3,6 +3,9 @@ import argparse
 from typing import Dict, List, Tuple
 import sys
 import os
+import time
+import matplotlib.pyplot as plt
+import numpy as np
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -21,16 +24,19 @@ def cost_het_cluster(args: argparse.Namespace, gpu_cluster: GPUCluster, profile_
                      cost_estimator: HeteroCostEstimator, layer_load_balancer:LayerLoadBalancer) -> List[Tuple]:
 
     estimate_costs = []
+    search_steps = 0
+    min_cost = 1000000000
+    pair_costs = []
     for inter_stage_plan in InterStagePlanGenerator(device_types=set(gpu_cluster.get_device_types()),
                                                     num_devices=gpu_cluster.get_total_num_devices(),
                                                     gbs=args.gbs, num_layers=args.num_layers,
                                                     variance=args.min_group_scale_variance,
                                                     max_permute_len=args.max_permute_len):
 
-        print(f'\n\ninter_stage_plan: {inter_stage_plan}')
+        # print(f'\n\ninter_stage_plan: {inter_stage_plan}')
         stage_performance = StagePerformance(model_config, profile_data, gpu_cluster, inter_stage_plan)
         rank_device_map = stage_performance.get_device_placement()
-
+        search_steps += 1
         intra_stage_plan_generator = IntraStagePlanGenerator(inter_stage_plan, stage_performance, layer_load_balancer,
                                                              args.max_profiled_tp_degree, args.max_profiled_batch_size)
 
@@ -39,13 +45,13 @@ def cost_het_cluster(args: argparse.Namespace, gpu_cluster: GPUCluster, profile_
             try:
                 cost = cost_estimator.get_cost(inter_stage_plan, intra_stage_plan.strategies,
                                                intra_stage_plan.layer_partition, rank_device_map)
-                print(f'cost: {cost}')
+                # print(f'cost: {cost}')
                 estimate_costs.append((inter_stage_plan.node_sequence, inter_stage_plan.device_groups,
                                        intra_stage_plan.strategies, inter_stage_plan.batches,
                                        intra_stage_plan.layer_partition, intra_stage_plan.num_repartition, cost))
             except KeyError as e:
                 print(f'KeyError: {e}')
-
+    print("total search step:", search_steps)
     return estimate_costs
 
 
@@ -55,7 +61,7 @@ if __name__ == '__main__':
 
     data_loader = ProfileDataLoader(args.profile_data_path)
     profile_data, _ = data_loader.load_profile_data_all()
-    print(profile_data)
+    # print(profile_data)
 
     assert len(profile_data.keys()) > 0, 'There is no profiled data at the specified path.'
 
@@ -67,11 +73,44 @@ if __name__ == '__main__':
     cost_estimator = HeteroCostEstimator(profile_data, model_config, model_volume, gpu_cluster)
     layer_load_balancer = LayerLoadBalancer(gpu_cluster, profile_data, model_config, args.gbs)
 
+    start_time = time.time()
     estimate_costs = cost_het_cluster(args, gpu_cluster, profile_data, model_config, cost_estimator, layer_load_balancer)
+    end_time = time.time()
+    print(f'total search time: {end_time - start_time} seconds')
+
+    cost_array = [element[-1] for element in estimate_costs]
+
+    # Number of steps (assuming 1 step per cost value)
+    steps = np.arange(1, len(cost_array) + 1)
+
+    # Compute min cost array
+    min_cost_array = np.minimum.accumulate(cost_array)
+
+    # # Plot the current cost (first figure)
+    # plt.figure(figsize=(10, 5))
+    # plt.plot(steps, cost_array, marker='o', linestyle='-', color='b')
+    # plt.xlabel('Number of Steps')
+    # plt.ylabel('Current Cost')
+    # plt.title('Current Cost vs Number of Steps')
+    # plt.grid(True)
+    # plt.show()
+
+    # # Plot the min cost (second figure)
+    # plt.figure(figsize=(10, 5))
+    # plt.plot(steps, min_cost_array, marker='o', linestyle='-', color='g')
+    # plt.xlabel('Number of Steps')
+    # plt.ylabel('Min Cost')
+    # plt.title('Min Cost vs Number of Steps')
+    # plt.grid(True)
+    # plt.show()
+
 
     print(f'len(costs): {len(estimate_costs)}')
     sorted_result = sorted(estimate_costs, key=lambda kv: kv[6])
     print(
         'rank, cost, node_sequence, device_groups, strategies(dp_deg, tp_deg), batches(number of batch), layer_partition')
+    # print(sorted_result[0])
     for idx, result in enumerate(sorted_result):
-        print(f'{idx + 1}, {result[6]}, {result[0]}, {result[1]}, {result[2]}, {result[3]}, {result[4]}')
+        if (idx == 0):
+            print(f'{idx + 1}, {result[6]}, {result[0]}, {result[1]}, {result[2]}, {result[3]}, {result[4]}')
+        # print(f'{idx + 1}, {result[6]}, {result[0]}, {result[1]}, {result[2]}, {result[3]}, {result[4]}')

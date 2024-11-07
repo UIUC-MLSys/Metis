@@ -198,9 +198,9 @@ class HeteroCostEstimator(CostEstimator):
 
     def get_cost(self, plan: InterStagePlan, strategies: List[Tuple[int, int]], layer_partition: List[int],
                  rank_device_map: Dict[int, str]) -> float:
-        print(f'node_sequence: {plan.node_sequence}, device_group: {plan.device_groups}, num_stage: {plan.num_stage}, '
-              f'batches: {plan.batches}, gbs: {plan.gbs}, strategies: {strategies}, '
-              f'layer_partition: {layer_partition}')
+        # print(f'node_sequence: {plan.node_sequence}, device_group: {plan.device_groups}, num_stage: {plan.num_stage}, '
+        #       f'batches: {plan.batches}, gbs: {plan.gbs}, strategies: {strategies}, '
+        #       f'layer_partition: {layer_partition}')
 
         cluster_bandwidth = HetClusterBandwidth(self.gpu_cluster, plan)
 
@@ -236,8 +236,8 @@ class HeteroCostEstimator(CostEstimator):
         execution_cost = ((plan.batches - 1) * max_l) + sum(lens)
         batch_generate_cost = self._get_batch_generate_cost(plan.batches)
 
-        print(f'execution_cost: {execution_cost}, fb_sync_cost: {fb_sync_cost}, '
-              f'parameter_upate_costs: {max(parameter_update_costs)}, dp_cost: {max(dp_costs)}, pp_cost: {pp_cost}')
+        # print(f'execution_cost: {execution_cost}, fb_sync_cost: {fb_sync_cost}, '
+        #       f'parameter_upate_costs: {max(parameter_update_costs)}, dp_cost: {max(dp_costs)}, pp_cost: {pp_cost}')
         time_cost = (execution_cost + fb_sync_cost + max(parameter_update_costs) + max(dp_costs) + pp_cost
                      + batch_generate_cost)
 
