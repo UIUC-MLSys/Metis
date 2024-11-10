@@ -1,3 +1,4 @@
+import argparse
 import json
 import os
 import re
@@ -24,7 +25,7 @@ def edit_a100_files(profile_dir):
             
             print(f"Generated: {output_filepath}")
 
-def scale_up(profile_dir, final):
+def scale_up_tp_and_bs(profile_dir, final):
     # Iterate over all files in the profile directory
     for tp in (1,2,4):
         bs = 4
@@ -168,10 +169,19 @@ def clear_profile_dir(profile_dir):
         except Exception as e:
             print(f"Failed to delete {file_path}. Reason: {e}")
 
-# Usage example
-clear_profile_dir("./profile")
-# Usage example
-edit_a100_files("./profile")
-scale_up_layers("./profile", 10)
-scale_up("./profile", 16)
-create_v100_files("./profile")
+def main():
+    parser = argparse.ArgumentParser(description="Generate synthetic data files")
+    parser.add_argument("layers", type=int, help="Number of layers")
+    parser.add_argument("batch_size", type=int, help="Max batch size")
+    parser.add_argument("--profile_dir", default="./profile", help="Profile directory")
+
+    args = parser.parse_args()
+
+    clear_profile_dir(args.profile_dir)
+    edit_a100_files(args.profile_dir)
+    scale_up_layers(args.profile_dir, args.layers)
+    scale_up_tp_and_bs(args.profile_dir, args.batch_size)
+    create_v100_files(args.profile_dir)
+
+if __name__ == "__main__":
+    main()
