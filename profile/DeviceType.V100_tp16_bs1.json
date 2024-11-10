@@ -20,25 +20,25 @@
     "num_MHA_layers": 8
   },
   "execution_time": {
-    "total_time_ms": 633.7372541427612,
-    "forward_backward_time_ms": 611.6964817047119,
-    "batch_generator_time_ms": 0.9355545043945312,
-    "layernorm_grads_all_reduce_time_ms": 0.6118535995483398,
-    "embedding_grads_all_reduce_time_ms": 0.038433074951171875,
-    "optimizer_time_ms": 20.454931259155273,
+    "total_time_ms": 130.28882145881653,
+    "forward_backward_time_ms": 87.42994666099548,
+    "batch_generator_time_ms": 3.269684314727783,
+    "layernorm_grads_all_reduce_time_ms": 1.608431339263916,
+    "embedding_grads_all_reduce_time_ms": 0.13076066970825195,
+    "optimizer_time_ms": 37.849998474121094,
     "layer_compute_total_ms": [
-      2.507448196411133,
-      63.25173377990723,
-      63.25173377990723,
-      63.25173377990723,
-      63.25173377990723,
-      63.25173377990723,
-      63.25173377990723,
-      63.25173377990723,
-      63.25173377990723,
-      0.6699562072753906
+      0.8980929851531982,
+      8.93983244895935,
+      8.93983244895935,
+      8.93983244895935,
+      8.93983244895935,
+      8.93983244895935,
+      8.93983244895935,
+      8.93983244895935,
+      8.93983244895935,
+      0.29540061950683594
     ],
-    "between_forward_backward_time_ms": 102.50520706176758
+    "between_forward_backward_time_ms": 14.717793464660645
   },
   "execution_memory": {
     "total_memory": 53120,

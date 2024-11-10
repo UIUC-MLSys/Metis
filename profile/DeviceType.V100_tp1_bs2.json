@@ -16,10 +16,11 @@
         202383360,
         393220096
       ]
-    }
+    },
+    "num_MHA_layers": 8
   },
   "execution_time": {
-    "total_time_ms": 2183.639430999756,
+    "total_time_ms": 2173.7634539604187,
     "forward_backward_time_ms": 2030.907964706421,
     "batch_generator_time_ms": 4.0178656578063965,
     "layernorm_grads_all_reduce_time_ms": 0.07777214050292969,
@@ -36,7 +37,8 @@
       206.02190494537354,
       206.02190494537354,
       2.294778823852539
-    ]
+    ],
+    "between_forward_backward_time_ms": 378.2391309738159
   },
   "execution_memory": {
     "total_memory": 53120,
