@@ -175,7 +175,6 @@ class HeteroCostEstimator(CostEstimator):
     def _get_execution_cost(self, device_types: List[str], start_layer_id: int, end_layer_id:int,
                             intra_strategy: Tuple[int, int], gbs: int, batches: int) -> float:
         dp_deg, tp_deg = intra_strategy
-
         # homogeneous device group
         if len(set(device_types)) == 1:
             device_type = device_types[0]
@@ -191,7 +190,6 @@ class HeteroCostEstimator(CostEstimator):
             data_load_balancer = DataLoadBalancer(self.profile_data, self.model_config)
             hetero_bs = data_load_balancer.partition_data(device_types, intra_strategy, gbs // batches)
             print(f'data loadbalancer: {hetero_bs}')
-
             execution_costs = self._get_hetero_device_group_execution_time(device_types, intra_strategy, hetero_bs,
                                                                            start_layer_id, end_layer_id)
             return max(execution_costs)

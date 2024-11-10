@@ -14,7 +14,7 @@ To run this project, you need to install the required packages. Follow the steps
 
 1. Clone the repository: 
 ```bash
-git clone https://github.com/SamsungLabs/Metis.git
+git clone https://github.com/Jiminator/Metis.git
 ```
 
 2. Navigate to the project directory:
@@ -27,8 +27,30 @@ cd ~/Metis
 pip install -r requirements.txt
 ```
 
-4. Once all dependencies are installed, you are ready to run the project.
+4. Once all dependencies are installed, generate synthetic cluster data for 10 layers and 16 bs/tp
+```bash
+python3 gen_synth_data.py 10 16
+```
 
+5. Create hostfile and add the following
+```bash
+0.0.0.1 slots=4
+0.0.0.1 slots=4
+0.0.0.1 slots=4
+0.0.0.1 slots=4
+0.0.0.4 slots=4
+0.0.0.4 slots=4
+0.0.0.4 slots=4
+0.0.0.4 slots=4
+```
+6. Execute profiling script
+```bash
+# Mac
+sh ./scripts/mac_cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/Users/jimmy/Desktop/UIUC/Research/Metis' MAX_PROFILED_TP=4 MAX_PROFILED_BATCH_SIZE=4 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=10
+
+# Linux or Windows
+source ./cost_het_cluster.sh MODEL_NAME=GPT MODEL_SIZE=1.5B NUM_LAYERS=10 GBS=128 HOME_DIR='/Users/jimmy/Desktop/UIUC/Research/Metis' MAX_PROFILED_TP=4 MAX_PROFILED_BATCH_SIZE=4 SCALE_VARIANCE=1 MAX_PERMUTE_LEN=10
+```
 
 #### Supported Python Versions
 - 3.9

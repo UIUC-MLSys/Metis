@@ -31,8 +31,7 @@ def cost_het_cluster(args: argparse.Namespace, gpu_cluster: GPUCluster, profile_
         stage_performance = StagePerformance(model_config, profile_data, gpu_cluster, inter_stage_plan)
         rank_device_map = stage_performance.get_device_placement()
 
-        intra_stage_plan_generator = IntraStagePlanGenerator(inter_stage_plan, stage_performance, layer_load_balancer,
-                                                             args.max_profiled_tp_degree, args.max_profiled_batch_size)
+        intra_stage_plan_generator = IntraStagePlanGenerator(inter_stage_plan, stage_performance, layer_load_balancer, args.max_profiled_tp_degree, args.max_profiled_batch_size)
 
         while intra_stage_plan_generator.has_next:
             intra_stage_plan = intra_stage_plan_generator.next()
@@ -68,7 +67,6 @@ if __name__ == '__main__':
     layer_load_balancer = LayerLoadBalancer(gpu_cluster, profile_data, model_config, args.gbs)
 
     estimate_costs = cost_het_cluster(args, gpu_cluster, profile_data, model_config, cost_estimator, layer_load_balancer)
-
     print(f'len(costs): {len(estimate_costs)}')
     sorted_result = sorted(estimate_costs, key=lambda kv: kv[6])
     print(

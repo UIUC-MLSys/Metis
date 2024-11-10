@@ -42,6 +42,8 @@ class StagePerformance:
         dp_deg, tp_deg = intra_strategy
         execution_costs = []
         for dp_id, h_mbs in enumerate(hetero_bs):
+            # if h_mbs > 4:
+            #     continue
             device_type = device_types[(len(device_types) // dp_deg) * dp_id]
             comb_h_mbs = [2 ** i for i in range(int(math.log2(h_mbs)) if h_mbs != 0 else 0, -1, -1) if h_mbs & 2 ** i]
             inner_dp_cost = 0.
@@ -89,7 +91,6 @@ class StagePerformance:
         for stage_id in range(len(self.plan.device_groups)):
             start_rank = sum(self.plan.device_groups[:stage_id])
             end_rank = sum(self.plan.device_groups[:stage_id + 1])
-
             device_types = [self.rank_device_map[rank] for rank in list(range(start_rank, end_rank))]
             device_type_dict = dict(Counter(device_types))
 

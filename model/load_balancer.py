@@ -35,7 +35,6 @@ class LayerLoadBalancer:
             start_rank = sum(device_group[:stage_id])
             end_rank = sum(device_group[:stage_id + 1])
             cur_device_types = [device_types[rank] for rank in range(start_rank, end_rank)]
-
             start_layer_id, end_layer_id = layer_partition[stage_id], layer_partition[stage_id + 1]
             cur_stage_memory_demand = 0.001
             if len(set(cur_device_types)) == 1:
@@ -46,7 +45,9 @@ class LayerLoadBalancer:
                 data_load_balancer = DataLoadBalancer(self.profile_data, self.model_config)
                 hetero_bs = data_load_balancer.partition_data(device_types, strategy, gbs // batches)
                 for h_mbs in hetero_bs:
-                    comb_h_mbs = [2 ** i for i in range(int(math.log2(h_mbs)) if h_mbs != 0 else 0, -1, -1) if h_mbs & 2 ** i]
+                    # if h_mbs > 4:
+                    #     continue
+                    comb_h_mbs = [2 ** j for j in range(int(math.log2(h_mbs)) if h_mbs != 0 else 0, -1, -1) if h_mbs & 2 ** j]
                     for slice_h_mbs in comb_h_mbs:
                         profile_memory = self.profile_data[f'DeviceType.{device_types[0]}'][f'tp{tp_deg}_bs{slice_h_mbs}']['memory']
                         cur_stage_memory_demand += sum(profile_memory[start_layer_id:end_layer_id]) * mem_coef
@@ -119,7 +120,7 @@ class LayerLoadBalancer:
         return sorted_device_types
 
     def partition_layer(self, plan: 'InterStagePlan', strategies: List[Tuple[int, int]],
-                        stage_compute_performance: List[float], stage_memory_capacity: List[int],
+                        stage_compute_performance: List[float], stage_memory_capacity: List[int], 
                         max_partition_attempts: int = 3) -> Tuple[Union[List, None], int, Union[List, None]]:
         device_types = self._device_types_by_node_sequence(plan.node_sequence)
 
@@ -165,7 +166,7 @@ class DataLoadBalancer:
         inner_total_performance = sum(inner_stage_performance)
         inner_stage_compute_performance = [s_performance / inner_total_performance
                                            for s_performance in inner_stage_performance]
-
+        
         hetero_bs = [int(bs * c_performance) for c_performance in inner_stage_compute_performance]
         remainder = bs - sum(hetero_bs)
 
@@ -175,7 +176,6 @@ class DataLoadBalancer:
         sorted_indices = sorted(range(len(remainder_ratio)), key=lambda i: remainder_ratio[i], reverse=True)
         for i in range(remainder):
             hetero_bs[sorted_indices[i]] += 1
-
         return hetero_bs
 
 
