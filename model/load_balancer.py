@@ -10,6 +10,9 @@ from utils import DeviceType
 if TYPE_CHECKING:
     from search_space.plan import InterStagePlan
 
+class hashabledict(dict):
+    def __hash__(self):
+        return hash(tuple(sorted(self.items())))
 
 class LayerLoadBalancer:
     def __init__(self, gpu_cluster: GPUCluster, profile_data: Dict, model_config, gbs: int):
@@ -27,7 +30,7 @@ class LayerLoadBalancer:
         return [layer_duration / total_layer_duration for layer_duration in layers_duration]
 
     def _get_stage_memory_demand(self, layer_partition: List[int], strategies: List[Tuple[int, int]],
-                                 device_group: List[int], device_types: List[str], gbs: int, batches: int,
+                                 device_group: List[int], device_types: List[str], gbs: int, batches: int, cache, 
                                  mem_coef: float = 5.0) -> List[float]:
         stage_memory = []
         for stage_id, strategy in enumerate(strategies):
@@ -35,17 +38,24 @@ class LayerLoadBalancer:
             start_rank = sum(device_group[:stage_id])
             end_rank = sum(device_group[:stage_id + 1])
             cur_device_types = [device_types[rank] for rank in range(start_rank, end_rank)]
-
-            start_layer_id, end_layer_id = layer_partition[stage_id], layer_partition[stage_id + 1]
+            # print(f'cur_device_types: {cur_device_types}')
+            stage_mapping = (hashabledict(dict(Counter(tuple(cur_device_types)))), tuple(layer_partition[1][stage_id]))
+            # print("STAGE MAPPING:", stage_mapping)
+            cache[stage_mapping] = 1 + cache.get(stage_mapping, 0)
+            start_layer_id, end_layer_id = layer_partition[0][stage_id], layer_partition[0][stage_id + 1]
             cur_stage_memory_demand = 0.001
             if len(set(cur_device_types)) == 1:
                 bs = gbs // batches // dp_deg
                 profile_memory = self.profile_data[f'DeviceType.{device_types[0]}'][f'tp{tp_deg}_bs{bs}']['memory']
                 cur_stage_memory_demand += sum(profile_memory[start_layer_id:end_layer_id]) * mem_coef
+                # print(f'profile_memory: {profile_memory}')
+                # print(f'cur_stage_memory_demand: {cur_stage_memory_demand}')
             else:
                 data_load_balancer = DataLoadBalancer(self.profile_data, self.model_config)
                 hetero_bs = data_load_balancer.partition_data(device_types, strategy, gbs // batches)
                 for h_mbs in hetero_bs:
+                    # if h_mbs > 4:
+                    #     continue
                     comb_h_mbs = [2 ** j for j in range(int(math.log2(h_mbs)) if h_mbs != 0 else 0, -1, -1) if h_mbs & 2 ** j]
                     for slice_h_mbs in comb_h_mbs:
                         profile_memory = self.profile_data[f'DeviceType.{device_types[0]}'][f'tp{tp_deg}_bs{slice_h_mbs}']['memory']
@@ -56,6 +66,8 @@ class LayerLoadBalancer:
 
     def _detect_out_of_memory(self, stage_memory_demand: List[float], stage_memory_capacity: List[float])\
             -> Tuple[bool, List[float]]:
+        # print(f'stage_memory_capacity: {stage_memory_capacity}')
+        # print(f'stage_memory_demand: {stage_memory_demand}')
         memory_usage = [m_capa - m_demand for m_capa, m_demand in zip(stage_memory_capacity, stage_memory_demand)]
         if min(memory_usage) < 0:
             return True, memory_usage
@@ -119,7 +131,7 @@ class LayerLoadBalancer:
         return sorted_device_types
 
     def partition_layer(self, plan: 'InterStagePlan', strategies: List[Tuple[int, int]],
-                        stage_compute_performance: List[float], stage_memory_capacity: List[int],
+                        stage_compute_performance: List[float], stage_memory_capacity: List[int], cache, 
                         max_partition_attempts: int = 3) -> Tuple[Union[List, None], int, Union[List, None]]:
         device_types = self._device_types_by_node_sequence(plan.node_sequence)
 
@@ -127,12 +139,13 @@ class LayerLoadBalancer:
         while cur_partition_attempt <= max_partition_attempts:
             layer_partition, stage_compute_demand = self._partition_layers_by_compute_performance(stage_compute_performance)
             stage_memory_demand = self._get_stage_memory_demand(layer_partition, strategies, plan.device_groups,
-                                                                device_types, plan.gbs, plan.batches)
+                                                                device_types, plan.gbs, plan.batches, cache)
             memory_exceeded, memory_state = self._detect_out_of_memory(stage_memory_demand, stage_memory_capacity)
-            print(f'layer_partition: {layer_partition}')
-            print(f'stage_memory_demand: {stage_memory_demand}, memory_state: {memory_state}')
+            print(f'layer_partition: {layer_partition[0]}')
+            # print("Layer Stages:", layer_partition[1])
+            # print(f'stage_memory_demand: {stage_memory_demand}, memory_state: {memory_state}')
             if not memory_exceeded:
-                return layer_partition, cur_partition_attempt, memory_state
+                return layer_partition[0], cur_partition_attempt, memory_state
 
             stage_compute_performance = self._adj_compute_performance(stage_compute_performance, stage_memory_capacity,
                                                                       stage_memory_demand)
@@ -202,7 +215,7 @@ class LayerComputeBalancer:
         self._alloc_first_pass_adjust()
 
         partition = self._get_partition()
-        sc_demand = self._get_stage_compute_demand(partition)
+        sc_demand = self._get_stage_compute_demand(partition[0])
         return partition, sc_demand
 
     def _init_allocation(self):
@@ -356,11 +369,14 @@ class LayerComputeBalancer:
 
     def _get_partition(self) -> List[int]:
         partition = [0]
+        stages = []
         for key in self.lid_alloc_stage.keys():
             stage_layers = self.lid_alloc_stage[key]
+            # print(f'stage_layers: {stage_layers}')
             partition.append(partition[key] + len(stage_layers))
+            stages.append(stage_layers)
 
-        return partition
+        return partition, stages
 
     def _get_stage_compute_demand(self, partition: List[int]) -> List[float]:
         stage_compute = []

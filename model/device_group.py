@@ -42,8 +42,8 @@ class StagePerformance:
         dp_deg, tp_deg = intra_strategy
         execution_costs = []
         for dp_id, h_mbs in enumerate(hetero_bs):
-            if h_mbs == 0 or h_mbs > 4:
-                continue
+            # if h_mbs > 4:
+            #     continue
             device_type = device_types[(len(device_types) // dp_deg) * dp_id]
             comb_h_mbs = [2 ** i for i in range(int(math.log2(h_mbs)) if h_mbs != 0 else 0, -1, -1) if h_mbs & 2 ** i]
             inner_dp_cost = 0.
@@ -88,16 +88,20 @@ class StagePerformance:
 
     def get_device_group_memory_capacity(self) -> List[int]:
         stage_memory_capacity: List[int] = []
+        # print("device_groups: ", self.plan.device_groups)
         for stage_id in range(len(self.plan.device_groups)):
             start_rank = sum(self.plan.device_groups[:stage_id])
             end_rank = sum(self.plan.device_groups[:stage_id + 1])
-
+            # print("start_rank: ", start_rank, "end_rank: ", end_rank)
+            # print("rank_device_map: ", self.rank_device_map)
             device_types = [self.rank_device_map[rank] for rank in list(range(start_rank, end_rank))]
             device_type_dict = dict(Counter(device_types))
+            # print("device_type_dict: ", device_type_dict)
 
             inner_stage_memory_capacity = []
             for device_type in device_type_dict.keys():
                 inner_stage_memory_capacity.append(
                     self.gpu_cluster.get_device_memory_for_device_type(device_type) * device_type_dict[device_type])
+                # print("device_type: ", device_type, "device_memory: ", self.gpu_cluster.get_device_memory_for_device_type(device_type))
             stage_memory_capacity.append(sum(inner_stage_memory_capacity))
         return stage_memory_capacity
