@@ -62,14 +62,12 @@ class CostEstimator(ABC):
             return reduce(lambda d, key: d.get(key) if d else None, keys, d)
 
         fb_sync_costs = []
-        # print("device_types: ", device_types)
         for device_type in device_types:
             nested_keys = [f'DeviceType.{device_type}', f'tp{tp_deg}_bs{batch_size}', 'time', 'fb_sync']
             fb_sync_cost = _get_nested_value(self.profile_data, nested_keys)
             if not fb_sync_cost:
                 raise KeyError(f"key(fb_sync) not found in profile_data")
             fb_sync_costs.append(fb_sync_cost)
-        # print(f'fb_sync_cost: {max(fb_sync_costs)}')
 
         return max(fb_sync_costs)
 
@@ -145,9 +143,7 @@ class HeteroCostEstimator(CostEstimator):
         super().__init__(profile_data, model_config, model_volume, gpu_cluster)
 
     def _get_specific_parameter_update_cost(self, optimizer_time: float, tp_deg: int, num_layers: int) -> float:
-        # print(f'optimizer_time: {optimizer_time}, tp_deg: {tp_deg}, num_layers: {num_layers}')
         ratio = num_layers / self.model_config.num_layers
-        # print(f'ratio: {ratio}')
         return optimizer_time / tp_deg * ratio
 
     def _get_execution_time(self, device_type: str, key: str, start_layer_id: int, end_layer_id: int) -> float:
@@ -179,19 +175,14 @@ class HeteroCostEstimator(CostEstimator):
     def _get_execution_cost(self, device_types: List[str], start_layer_id: int, end_layer_id:int,
                             intra_strategy: Tuple[int, int], gbs: int, batches: int) -> float:
         dp_deg, tp_deg = intra_strategy
-        # print("device_types: ", device_types)
-        # print("start_layer_id: ", start_layer_id)
-        # print("end_layer_id: ", end_layer_id)
         # homogeneous device group
         if len(set(device_types)) == 1:
             device_type = device_types[0]
             key = f'tp{tp_deg}_bs{gbs // dp_deg // batches}'
-            # print("bs: ", gbs // dp_deg // batches)
             if key not in self.profile_data[f'DeviceType.{device_type}'].keys():
                 raise KeyError(f"key({key}) not found in profile_data")
 
             profile_time = self.profile_data[f'DeviceType.{device_type}'][key]['time']['layer-computes']
-            # print(f'profile_time: {profile_time}')
             execution_cost = sum(profile_time[start_layer_id:end_layer_id])
             return execution_cost
         # heterogeneous device group
@@ -199,9 +190,6 @@ class HeteroCostEstimator(CostEstimator):
             data_load_balancer = DataLoadBalancer(self.profile_data, self.model_config)
             hetero_bs = data_load_balancer.partition_data(device_types, intra_strategy, gbs // batches)
             print(f'data loadbalancer: {hetero_bs}')
-            # print("device_types: ", device_types)
-            # print("intra_strategy: ", intra_strategy)
-            # print("hetero_bs: ", hetero_bs)
             execution_costs = self._get_hetero_device_group_execution_time(device_types, intra_strategy, hetero_bs,
                                                                            start_layer_id, end_layer_id)
             return max(execution_costs)
@@ -225,12 +213,10 @@ class HeteroCostEstimator(CostEstimator):
 
             execution_cost = self._get_execution_cost(device_types, start_layer_id, end_layer_id, intra_strategy, plan.gbs, plan.batches)
             lens.append(execution_cost)
-            # print(f'lens: {lens}')
 
             dp_deg, tp_deg = intra_strategy
             mbs = plan.gbs // dp_deg // plan.batches
             if stage_id == (plan.num_stage - 1):
-                # print('batches:', plan.batches)
                 fb_sync_cost = self._get_fb_sync_cost(device_types, tp_deg, mbs) * plan.batches
             else:
                 #pp communication cost
@@ -240,11 +226,8 @@ class HeteroCostEstimator(CostEstimator):
 
             #dp communication cost
             stage_parameters = self.model_volume.get_parameter_size_by_stage(tp_deg, start_layer_id, end_layer_id)
-            # print("stage_parameters: ", stage_parameters)
             dp_bandwidth = cluster_bandwidth.get_slowest_dp_bandwidth(intra_strategy, stage_id)
-            # print("dp_bandwidth: ", dp_bandwidth)
             dp_costs.append(self._get_dp_cost([stage_parameters], dp_bandwidth, dp_deg))
-            # print("dp_costs: ", dp_costs)
             parameter_update_costs.append(self._get_parameter_update_cost(tp_deg, (end_layer_id - start_layer_id)))
 
         max_l = max(lens)
