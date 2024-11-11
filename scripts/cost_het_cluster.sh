@@ -27,6 +27,13 @@ if [ "${MODEL_NAME}" == "GPT" ]; then
     VOCAB_SIZE=51200
     ATTENTION_HEAD_SIZE=32
   fi
+  if [ "${MODEL_SIZE}" == "70B" ] ; then
+    HIDDEN_SIZE=8192
+    SEQUENCE_LENGTH=1024
+    NUM_LAYERS=80
+    VOCAB_SIZE=128000
+    ATTENTION_HEAD_SIZE=64
+  fi
 
   model_specific_options="
                 --hidden_size=${HIDDEN_SIZE}
@@ -35,7 +42,7 @@ if [ "${MODEL_NAME}" == "GPT" ]; then
               "
 fi
 
-HOST_FILE_PATH="${HOME_DIR}/hostfile"
+HOST_FILE_PATH="${HOME_DIR}/hostfile/hostfile"
 CLUSTER_INFO_FILE_PATH="${HOME_DIR}/clusterfile.json"
 
 cluster_options="
@@ -61,7 +68,7 @@ hetspeed_options="
                     --max_permute_len=${MAX_PERMUTE_LEN}
                  "
 
-run_cmd="python3 ../cost_het_cluster.py ${model_options} ${model_specific_options} ${cluster_options} ${hetspeed_options} ${env_options}
+run_cmd="python ./cost_het_cluster.py ${model_options} ${model_specific_options} ${cluster_options} ${hetspeed_options} ${env_options}
          &> ${LOG_PATH}/${MODEL_NAME}_${MODEL_SIZE}_${current_time}.log"
 
 echo ${run_cmd}

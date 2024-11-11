@@ -169,19 +169,40 @@ def clear_profile_dir(profile_dir):
         except Exception as e:
             print(f"Failed to delete {file_path}. Reason: {e}")
 
+def clear_hostfile_dir(hostfile_dir):
+    # Iterate over all files in the hostfile directory
+    for filename in os.listdir(hostfile_dir):
+        file_path = os.path.join(hostfile_dir, filename)
+        try:
+            if os.path.isfile(file_path):
+                os.unlink(file_path)
+                print(f"Deleted: {file_path}")
+        except Exception as e:
+            print(f"Failed to delete {file_path}. Reason: {e}")
+
+def gen_hostfile(hostfile_dir, num_hosts):
+    with open(os.path.join(hostfile_dir, 'hostfile'), 'w') as file:
+        for i in range(num_hosts):
+            file.write(f'0.0.0.4 slots=4\n')
+    print(f"Generated hostfile with {num_hosts} hosts")
+
 def main():
     parser = argparse.ArgumentParser(description="Generate synthetic data files")
     parser.add_argument("layers", type=int, help="Number of layers")
     parser.add_argument("batch_size", type=int, help="Max batch size")
+    parser.add_argument("num_hosts", type=int, help="Number of hosts")
     parser.add_argument("--profile_dir", default="./profile", help="Profile directory")
+    parser.add_argument("--hostfile_dir", default="./hostfile", help="Hostfile directory")
 
     args = parser.parse_args()
 
     clear_profile_dir(args.profile_dir)
+    clear_hostfile_dir(args.hostfile_dir)
     edit_a100_files(args.profile_dir)
     scale_up_layers(args.profile_dir, args.layers)
     scale_up_tp_and_bs(args.profile_dir, args.batch_size)
     create_v100_files(args.profile_dir)
+    gen_hostfile(args.hostfile_dir, args.num_hosts)
 
 if __name__ == "__main__":
     main()

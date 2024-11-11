@@ -189,16 +189,16 @@ class HeteroCostEstimator(CostEstimator):
         else:
             data_load_balancer = DataLoadBalancer(self.profile_data, self.model_config)
             hetero_bs = data_load_balancer.partition_data(device_types, intra_strategy, gbs // batches)
-            print(f'data loadbalancer: {hetero_bs}')
+            # print(f'data loadbalancer: {hetero_bs}')
             execution_costs = self._get_hetero_device_group_execution_time(device_types, intra_strategy, hetero_bs,
                                                                            start_layer_id, end_layer_id)
             return max(execution_costs)
 
     def get_cost(self, plan: InterStagePlan, strategies: List[Tuple[int, int]], layer_partition: List[int],
                  rank_device_map: Dict[int, str]) -> float:
-        print(f'node_sequence: {plan.node_sequence}, device_group: {plan.device_groups}, num_stage: {plan.num_stage}, '
-              f'batches: {plan.batches}, gbs: {plan.gbs}, strategies: {strategies}, '
-              f'layer_partition: {layer_partition}')
+        # print(f'node_sequence: {plan.node_sequence}, device_group: {plan.device_groups}, num_stage: {plan.num_stage}, '
+        #       f'batches: {plan.batches}, gbs: {plan.gbs}, strategies: {strategies}, '
+        #       f'layer_partition: {layer_partition}')
 
         cluster_bandwidth = HetClusterBandwidth(self.gpu_cluster, plan)
 
@@ -234,8 +234,8 @@ class HeteroCostEstimator(CostEstimator):
         execution_cost = ((plan.batches - 1) * max_l) + sum(lens)
         batch_generate_cost = self._get_batch_generate_cost(plan.batches)
 
-        print(f'execution_cost: {execution_cost}, fb_sync_cost: {fb_sync_cost}, '
-              f'parameter_upate_costs: {max(parameter_update_costs)}, dp_cost: {max(dp_costs)}, pp_cost: {pp_cost}')
+        # print(f'execution_cost: {execution_cost}, fb_sync_cost: {fb_sync_cost}, '
+        #       f'parameter_upate_costs: {max(parameter_update_costs)}, dp_cost: {max(dp_costs)}, pp_cost: {pp_cost}')
         time_cost = (execution_cost + fb_sync_cost + max(parameter_update_costs) + max(dp_costs) + pp_cost
                      + batch_generate_cost)
 

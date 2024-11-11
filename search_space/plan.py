@@ -105,7 +105,7 @@ class InterStagePlanGenerator:
         self.num_devices = num_devices
         self.gbs = gbs
         self.num_layers = num_layers
-        self.variance = variance
+        self.variance = variance/2
         self.max_permute_len = max_permute_len
         self.group_shapes = gen_device_group_shapes(num_devices)
         self.device_groups = gen_dgroups_for_stages_with_variance(num_stages=1,
@@ -204,18 +204,18 @@ class IntraStagePlanGenerator:
                 return False
 
             if self._is_valid_strategies(self.curr.strategies):
-                print(f'valid_strategies: {self.curr.strategies}')
+                # print(f'valid_strategies: {self.curr.strategies}')
                 stage_memory_capacity = self.stage_performance.get_device_group_memory_capacity()
                 intra_stage_compute_performance = self.stage_performance.get_intra_stage_compute_performance(
                     self.curr.strategies, self.gbs, self.batches)
-                print(f'stage_memory_capacity: {stage_memory_capacity}')
-                print(f'stage_compute_performance: {intra_stage_compute_performance}')
+                # print(f'stage_memory_capacity: {stage_memory_capacity}')
+                # print(f'stage_compute_performance: {intra_stage_compute_performance}')
 
                 layer_partition, num_repartition, memory_state = (
                     self.layer_load_balancer.partition_layer(self.inter_stage_plan, self.curr.strategies,
                                                              intra_stage_compute_performance, stage_memory_capacity))
 
-                print(f'layer_partition: {layer_partition}')
+                # print(f'layer_partition: {layer_partition}')
                 if layer_partition:
                     self.curr.layer_partition = layer_partition
                     self.curr.memory_state = memory_state
@@ -240,11 +240,11 @@ class IntraStagePlanGenerator:
             mbs = self.gbs // dp_deg // self.batches
             if mbs == 0 or mbs > self.max_bs:
                 # log for debugging
-                print(f'invalid_strategy: dp_deg({dp_deg}), batches({self.batches}), mbs(0)')
+                # print(f'invalid_strategy: dp_deg({dp_deg}), batches({self.batches}), mbs(0)')
                 return False
             if tp_deg > self.max_tp_degree:
                 # log for debugging
-                print(f'invalid_strategy: tp_deg({tp_deg})')
+                # print(f'invalid_strategy: tp_deg({tp_deg})')
                 return False
         return True
 

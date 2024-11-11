@@ -3,6 +3,7 @@ import argparse
 from typing import Dict, List, Tuple
 import sys
 import os
+import time
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -27,7 +28,7 @@ def cost_het_cluster(args: argparse.Namespace, gpu_cluster: GPUCluster, profile_
                                                     variance=args.min_group_scale_variance,
                                                     max_permute_len=args.max_permute_len):
 
-        print(f'\n\ninter_stage_plan: {inter_stage_plan}')
+        # print(f'\n\ninter_stage_plan: {inter_stage_plan}')
         stage_performance = StagePerformance(model_config, profile_data, gpu_cluster, inter_stage_plan)
         rank_device_map = stage_performance.get_device_placement()
 
@@ -38,7 +39,7 @@ def cost_het_cluster(args: argparse.Namespace, gpu_cluster: GPUCluster, profile_
             try:
                 cost = cost_estimator.get_cost(inter_stage_plan, intra_stage_plan.strategies,
                                                intra_stage_plan.layer_partition, rank_device_map)
-                print(f'cost: {cost}')
+                # print(f'cost: {cost}')
                 estimate_costs.append((inter_stage_plan.node_sequence, inter_stage_plan.device_groups,
                                        intra_stage_plan.strategies, inter_stage_plan.batches,
                                        intra_stage_plan.layer_partition, intra_stage_plan.num_repartition, cost))
@@ -66,10 +67,14 @@ if __name__ == '__main__':
     cost_estimator = HeteroCostEstimator(profile_data, model_config, model_volume, gpu_cluster)
     layer_load_balancer = LayerLoadBalancer(gpu_cluster, profile_data, model_config, args.gbs)
 
+    start_time = time.time()
     estimate_costs = cost_het_cluster(args, gpu_cluster, profile_data, model_config, cost_estimator, layer_load_balancer)
+    end_time = time.time()
+    print(f'Total time: {end_time - start_time} sec')
     print(f'len(costs): {len(estimate_costs)}')
     sorted_result = sorted(estimate_costs, key=lambda kv: kv[6])
     print(
         'rank, cost, node_sequence, device_groups, strategies(dp_deg, tp_deg), batches(number of batch), layer_partition')
     for idx, result in enumerate(sorted_result):
-        print(f'{idx + 1}, {result[6]}, {result[0]}, {result[1]}, {result[2]}, {result[3]}, {result[4]}')
+        if (idx < 10):
+            print(f'{idx + 1}, {result[6]}, {result[0]}, {result[1]}, {result[2]}, {result[3]}, {result[4]}')
