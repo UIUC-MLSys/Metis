@@ -38,7 +38,7 @@ if [ "${MODEL_NAME}" == "Llama" ]; then
   if [ "${MODEL_SIZE}" == "80B" ] ; then
     HIDDEN_SIZE=8192
     SEQUENCE_LENGTH=1024
-    NUM_LAYERS=82
+    NUM_LAYERS=80
     VOCAB_SIZE=128000
     ATTENTION_HEAD_SIZE=64
   fi
