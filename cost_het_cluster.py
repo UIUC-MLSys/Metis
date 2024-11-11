@@ -18,7 +18,7 @@ from utils import ModelConfig
 
 
 def cost_het_cluster(args: argparse.Namespace, gpu_cluster: GPUCluster, profile_data: Dict, model_config: ModelConfig,
-                     cost_estimator: HeteroCostEstimator, layer_load_balancer:LayerLoadBalancer) -> List[Tuple]:
+                     cost_estimator: HeteroCostEstimator, layer_load_balancer:LayerLoadBalancer, cache) -> List[Tuple]:
 
     estimate_costs = []
     for inter_stage_plan in InterStagePlanGenerator(device_types=set(gpu_cluster.get_device_types()),
@@ -31,7 +31,7 @@ def cost_het_cluster(args: argparse.Namespace, gpu_cluster: GPUCluster, profile_
         stage_performance = StagePerformance(model_config, profile_data, gpu_cluster, inter_stage_plan)
         rank_device_map = stage_performance.get_device_placement()
 
-        intra_stage_plan_generator = IntraStagePlanGenerator(inter_stage_plan, stage_performance, layer_load_balancer, args.max_profiled_tp_degree, args.max_profiled_batch_size)
+        intra_stage_plan_generator = IntraStagePlanGenerator(inter_stage_plan, stage_performance, layer_load_balancer, args.max_profiled_tp_degree, args.max_profiled_batch_size, cache)
 
         while intra_stage_plan_generator.has_next:
             intra_stage_plan = intra_stage_plan_generator.next()
@@ -45,7 +45,7 @@ def cost_het_cluster(args: argparse.Namespace, gpu_cluster: GPUCluster, profile_
             except KeyError as e:
                 print(f'KeyError: {e}')
 
-    return estimate_costs
+    return estimate_costs, cache
 
 
 if __name__ == '__main__':
@@ -61,14 +61,15 @@ if __name__ == '__main__':
     model_config = ModelConfig(model_name=args.model_name, num_layers=args.num_layers,
                                sequence_length=args.sequence_length, vocab_size=args.vocab_size,
                                hidden_size=args.hidden_size, attention_head_size=args.attention_head_size)
-
+    cache = {}
     model_volume = GPTActivationAndParam(model_config, profile_data['model']['parameters'])
     cost_estimator = HeteroCostEstimator(profile_data, model_config, model_volume, gpu_cluster)
     layer_load_balancer = LayerLoadBalancer(gpu_cluster, profile_data, model_config, args.gbs)
 
-    estimate_costs = cost_het_cluster(args, gpu_cluster, profile_data, model_config, cost_estimator, layer_load_balancer)
-    print(f'len(costs): {len(estimate_costs)}')
-    sorted_result = sorted(estimate_costs, key=lambda kv: kv[6])
+    estimate_costs = cost_het_cluster(args, gpu_cluster, profile_data, model_config, cost_estimator, layer_load_balancer, cache)
+    print("cache =", estimate_costs[1])
+    print(f'len(costs): {len(estimate_costs[0])}')
+    sorted_result = sorted(estimate_costs[0], key=lambda kv: kv[6])
     print(
         'rank, cost, node_sequence, device_groups, strategies(dp_deg, tp_deg), batches(number of batch), layer_partition')
     for idx, result in enumerate(sorted_result):

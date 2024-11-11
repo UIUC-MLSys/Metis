@@ -177,7 +177,7 @@ class InterStagePlanGenerator:
 
 class IntraStagePlanGenerator:
     def __init__(self, inter_stage_plan: InterStagePlan, stage_performance: StagePerformance,
-                 layer_load_balancer: LayerLoadBalancer, max_tp_degree: int, max_bs: int):
+                 layer_load_balancer: LayerLoadBalancer, max_tp_degree: int, max_bs: int, cache):
         self.inter_stage_plan = inter_stage_plan
         self.device_groups = inter_stage_plan.device_groups
         self.gbs = inter_stage_plan.gbs
@@ -186,6 +186,7 @@ class IntraStagePlanGenerator:
         self.layer_load_balancer = layer_load_balancer
         self.max_tp_degree = max_tp_degree
         self.max_bs = max_bs
+        self.cache = cache
 
         self.curr = IntraStagePlan(strategies=[], memory_state=[], layer_partition=[], num_repartition=0)
 
@@ -213,7 +214,7 @@ class IntraStagePlanGenerator:
 
                 layer_partition, num_repartition, memory_state = (
                     self.layer_load_balancer.partition_layer(self.inter_stage_plan, self.curr.strategies,
-                                                             intra_stage_compute_performance, stage_memory_capacity))
+                                                             intra_stage_compute_performance, stage_memory_capacity, self.cache))
 
                 print(f'layer_partition: {layer_partition}')
                 if layer_partition:
