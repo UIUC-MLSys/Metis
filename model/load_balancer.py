@@ -38,15 +38,13 @@ class LayerLoadBalancer:
             start_rank = sum(device_group[:stage_id])
             end_rank = sum(device_group[:stage_id + 1])
             cur_device_types = [device_types[rank] for rank in range(start_rank, end_rank)]
-            # print(f'cur_device_types: {cur_device_types}')
-            stage_mapping = (hashabledict(dict(Counter(tuple(cur_device_types)))), tuple(layer_partition[1][stage_id]))
-            # print("STAGE MAPPING:", stage_mapping)
-            cache[stage_mapping] = 1 + cache.get(stage_mapping, 0)
             start_layer_id, end_layer_id = layer_partition[0][stage_id], layer_partition[0][stage_id + 1]
             cur_stage_memory_demand = 0.001
             if len(set(cur_device_types)) == 1:
                 bs = gbs // batches // dp_deg
                 profile_memory = self.profile_data[f'DeviceType.{device_types[0]}'][f'tp{tp_deg}_bs{bs}']['memory']
+                stage_mapping = (tuple(cur_device_types), tuple(layer_partition[1][stage_id]), tp_deg, bs)
+                cache[stage_mapping] = 1 + cache.get(stage_mapping, 0)
                 cur_stage_memory_demand += sum(profile_memory[start_layer_id:end_layer_id]) * mem_coef
                 # print(f'profile_memory: {profile_memory}')
                 # print(f'cur_stage_memory_demand: {cur_stage_memory_demand}')
@@ -59,6 +57,8 @@ class LayerLoadBalancer:
                     comb_h_mbs = [2 ** j for j in range(int(math.log2(h_mbs)) if h_mbs != 0 else 0, -1, -1) if h_mbs & 2 ** j]
                     for slice_h_mbs in comb_h_mbs:
                         profile_memory = self.profile_data[f'DeviceType.{device_types[0]}'][f'tp{tp_deg}_bs{slice_h_mbs}']['memory']
+                        stage_mapping = (tuple(cur_device_types), tuple(layer_partition[1][stage_id]), tp_deg, slice_h_mbs)
+                        cache[stage_mapping] = 1 + cache.get(stage_mapping, 0)
                         cur_stage_memory_demand += sum(profile_memory[start_layer_id:end_layer_id]) * mem_coef
             stage_memory.append(cur_stage_memory_demand)
 
