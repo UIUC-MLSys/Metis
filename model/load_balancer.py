@@ -141,7 +141,7 @@ class LayerLoadBalancer:
                 return None, -1, None
 
             cur_partition_attempt += 1
-            print(f'adj_stage_compute_performance({cur_partition_attempt}): {stage_compute_performance}')
+            # print(f'adj_stage_compute_performance({cur_partition_attempt}): {stage_compute_performance}')
         return None, -1, None
 
 

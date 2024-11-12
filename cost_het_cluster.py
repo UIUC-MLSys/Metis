@@ -22,6 +22,7 @@ def cost_het_cluster(args: argparse.Namespace, gpu_cluster: GPUCluster, profile_
                      cost_estimator: HeteroCostEstimator, layer_load_balancer:LayerLoadBalancer) -> List[Tuple]:
 
     estimate_costs = []
+    step = 0
     for inter_stage_plan in InterStagePlanGenerator(device_types=set(gpu_cluster.get_device_types()),
                                                     num_devices=gpu_cluster.get_total_num_devices(),
                                                     gbs=args.gbs, num_layers=args.num_layers,
@@ -29,6 +30,7 @@ def cost_het_cluster(args: argparse.Namespace, gpu_cluster: GPUCluster, profile_
                                                     max_permute_len=args.max_permute_len):
 
         # print(f'\n\ninter_stage_plan: {inter_stage_plan}')
+        step += 1
         stage_performance = StagePerformance(model_config, profile_data, gpu_cluster, inter_stage_plan)
         rank_device_map = stage_performance.get_device_placement()
 
@@ -45,7 +47,7 @@ def cost_het_cluster(args: argparse.Namespace, gpu_cluster: GPUCluster, profile_
                                        intra_stage_plan.layer_partition, intra_stage_plan.num_repartition, cost))
             except KeyError as e:
                 print(f'KeyError: {e}')
-
+    print("Total Step: ", step)
     return estimate_costs
 
 
@@ -55,7 +57,7 @@ if __name__ == '__main__':
 
     data_loader = ProfileDataLoader(args.profile_data_path)
     profile_data, _ = data_loader.load_profile_data_all()
-    print(profile_data)
+    # print(profile_data)
 
     assert len(profile_data.keys()) > 0, 'There is no profiled data at the specified path.'
 
