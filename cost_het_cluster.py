@@ -3,6 +3,7 @@ import argparse
 from typing import Dict, List, Tuple
 import sys
 import os
+import time
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -66,7 +67,10 @@ if __name__ == '__main__':
     cost_estimator = HeteroCostEstimator(profile_data, model_config, model_volume, gpu_cluster)
     layer_load_balancer = LayerLoadBalancer(gpu_cluster, profile_data, model_config, args.gbs)
 
+    start_time = time.time()
     estimate_costs = cost_het_cluster(args, gpu_cluster, profile_data, model_config, cost_estimator, layer_load_balancer, cache)
+    end_time = time.time()
+    print(f'Total time: {end_time - start_time} sec')
     print("cache =", estimate_costs[1])
     print(f'len(costs): {len(estimate_costs[0])}')
     sorted_result = sorted(estimate_costs[0], key=lambda kv: kv[6])

@@ -80,7 +80,6 @@ class StagePerformance:
                 device_type = device_types[0]
                 profile_cost = self._get_execution_time(device_type, key=f'tp{tp_deg}_bs{bs}')
                 stage_performance.append(1. / profile_cost)
-
         total_performance = sum(stage_performance)
         stage_compute_performance = [s_performance / total_performance for s_performance in stage_performance]
 

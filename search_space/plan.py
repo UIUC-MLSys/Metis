@@ -194,11 +194,12 @@ class IntraStagePlanGenerator:
     def has_next(self) -> bool:
         if self.curr.num_repartition == 1:
             return False
-
+        print("NAIVE STRATEGY:", self._initial_strategies())
         while True:
             if not self.curr.strategies:
                 self.curr.strategies = self._initial_strategies()
             else:
+                print("TESTING NEW STRATEGY")
                 self.curr.strategies = self._next_strategy(copy.deepcopy(self.curr.strategies))
 
             if not self.curr.strategies:
@@ -233,7 +234,6 @@ class IntraStagePlanGenerator:
         strategies = []
         for num_devices in self.device_groups:
             strategies.append((num_devices, 1))
-
         return strategies
 
     def _is_valid_strategies(self, strategies: List[Tuple[int, int]]) -> bool:
@@ -241,15 +241,19 @@ class IntraStagePlanGenerator:
             mbs = self.gbs // dp_deg // self.batches
             if mbs == 0 or mbs > self.max_bs:
                 # log for debugging
-                print(f'invalid_strategy: dp_deg({dp_deg}), batches({self.batches}), mbs(0)')
+                if mbs == 0: 
+                    print(f'invalid_strategy (mbs == 0): dp_deg({dp_deg}), batches({self.batches}), mbs(0)')
+                else:
+                    print(f'invalid_strategy (mbs({mbs}) > self.max_bs): dp_deg({dp_deg}), batches({self.batches}), mbs(0)')
                 return False
             if tp_deg > self.max_tp_degree:
                 # log for debugging
-                print(f'invalid_strategy: tp_deg({tp_deg})')
+                print(f'invalid_strategy (tp_deg > max_tp_degree): tp_deg({tp_deg})')
                 return False
         return True
 
     def _next_strategy(self, strategies: List[Tuple[int, int]]) -> Union[List[Tuple[int, int]], None]:
+        print(f'curr_strategy: {strategies}')
         if self.curr.memory_state:
             memory_state = self.curr.memory_state
         else:
@@ -264,6 +268,7 @@ class IntraStagePlanGenerator:
             dp_deg, tp_deg = strategies[stage_id]
             if dp_deg != 1:
                 strategies[stage_id] = (dp_deg // 2, tp_deg * 2)
+                print(f'next_strategy: {strategies}')
                 return strategies
 
         return None

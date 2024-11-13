@@ -38,6 +38,7 @@ class LayerLoadBalancer:
             start_rank = sum(device_group[:stage_id])
             end_rank = sum(device_group[:stage_id + 1])
             cur_device_types = [device_types[rank] for rank in range(start_rank, end_rank)]
+            print("Testing Mapping:", tuple(cur_device_types), tuple(layer_partition[1][stage_id]))
             start_layer_id, end_layer_id = layer_partition[0][stage_id], layer_partition[0][stage_id + 1]
             cur_stage_memory_demand = 0.001
             if len(set(cur_device_types)) == 1:
@@ -137,11 +138,16 @@ class LayerLoadBalancer:
             stage_memory_demand = self._get_stage_memory_demand(layer_partition, strategies, plan.device_groups,
                                                                 device_types, plan.gbs, plan.batches, cache)
             memory_exceeded, memory_state = self._detect_out_of_memory(stage_memory_demand, stage_memory_capacity)
+            if cur_partition_attempt > 1:
+                print("new partition:", layer_partition[1])
             print(f'layer_partition: {layer_partition[0]}')
             print(f'stage_memory_demand: {stage_memory_demand}, memory_state: {memory_state}')
             if not memory_exceeded:
                 return layer_partition[0], cur_partition_attempt, memory_state
-
+            print("MEMORY EXCEEDED")
+            print("TESTING NEW PARTITION")
+            print("current partition:", layer_partition[1])
+            print("MP strategies:", strategies)
             stage_compute_performance = self._adj_compute_performance(stage_compute_performance, stage_memory_capacity,
                                                                       stage_memory_demand)
             if not stage_compute_performance:
