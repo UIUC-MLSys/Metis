@@ -8,6 +8,7 @@ import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from arguments import parse_args
+from collections import defaultdict
 from data_loader import ProfileDataLoader
 from model.cost_estimator import HeteroCostEstimator
 from model.activation_parameter import GPTActivationAndParam
@@ -62,16 +63,24 @@ if __name__ == '__main__':
     model_config = ModelConfig(model_name=args.model_name, num_layers=args.num_layers,
                                sequence_length=args.sequence_length, vocab_size=args.vocab_size,
                                hidden_size=args.hidden_size, attention_head_size=args.attention_head_size)
-    cache = {}
+    cache = defaultdict(int)
     model_volume = GPTActivationAndParam(model_config, profile_data['model']['parameters'])
     cost_estimator = HeteroCostEstimator(profile_data, model_config, model_volume, gpu_cluster)
     layer_load_balancer = LayerLoadBalancer(gpu_cluster, profile_data, model_config, args.gbs)
-
-    start_time = time.time()
-    estimate_costs = cost_het_cluster(args, gpu_cluster, profile_data, model_config, cost_estimator, layer_load_balancer, cache)
-    end_time = time.time()
-    print(f'Total time: {end_time - start_time} sec')
-    print("cache =", estimate_costs[1])
+    # start_time = time.time()
+    # first = cost_het_cluster(args, gpu_cluster, profile_data, model_config, cost_estimator, layer_load_balancer, cache)
+    # end_time = time.time()
+    # print(f'Total time: {(end_time - start_time) * 1000} ms')
+    total = 0
+    trials = 1
+    for i in range(trials):
+        start_time = time.time()
+        estimate_costs = cost_het_cluster(args, gpu_cluster, profile_data, model_config, cost_estimator, layer_load_balancer, cache)
+        end_time = time.time()
+        cache = defaultdict(int)
+        total += (end_time - start_time) * 1000
+    print(f'Avg Total time: {total / trials} ms')
+    print("cache =", dict(estimate_costs[1]))
     print(f'len(costs): {len(estimate_costs[0])}')
     sorted_result = sorted(estimate_costs[0], key=lambda kv: kv[6])
     print(

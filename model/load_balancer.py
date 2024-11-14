@@ -3,6 +3,7 @@ import copy
 import math
 from collections import Counter
 from typing import List, Tuple, Dict, Union, TYPE_CHECKING
+from functools import lru_cache
 
 from gpu_cluster import GPUCluster
 from utils import DeviceType
@@ -30,7 +31,7 @@ class LayerLoadBalancer:
         return [layer_duration / total_layer_duration for layer_duration in layers_duration]
 
     def _get_stage_memory_demand(self, layer_partition: List[int], strategies: List[Tuple[int, int]],
-                                 device_group: List[int], device_types: List[str], gbs: int, batches: int, cache,
+                                 device_group: List[int], device_types: List[str], gbs: int, batches: int,
                                  mem_coef: float = 5.0) -> List[float]:
         stage_memory = []
         for stage_id, strategy in enumerate(strategies):
@@ -44,8 +45,6 @@ class LayerLoadBalancer:
             if len(set(cur_device_types)) == 1:
                 bs = gbs // batches // dp_deg
                 profile_memory = self.profile_data[f'DeviceType.{device_types[0]}'][f'tp{tp_deg}_bs{bs}']['memory']
-                stage_mapping = (tuple(cur_device_types), tuple(layer_partition[1][stage_id]), tp_deg, bs)
-                cache[stage_mapping] = 1 + cache.get(stage_mapping, 0)
                 cur_stage_memory_demand += sum(profile_memory[start_layer_id:end_layer_id]) * mem_coef
             else:
                 data_load_balancer = DataLoadBalancer(self.profile_data, self.model_config)
@@ -56,9 +55,73 @@ class LayerLoadBalancer:
                     comb_h_mbs = [2 ** j for j in range(int(math.log2(h_mbs)) if h_mbs != 0 else 0, -1, -1) if h_mbs & 2 ** j]
                     for slice_h_mbs in comb_h_mbs:
                         profile_memory = self.profile_data[f'DeviceType.{device_types[0]}'][f'tp{tp_deg}_bs{slice_h_mbs}']['memory']
-                        stage_mapping = (tuple(cur_device_types), tuple(layer_partition[1][stage_id]), tp_deg, slice_h_mbs)
-                        cache[stage_mapping] = 1 + cache.get(stage_mapping, 0)
                         cur_stage_memory_demand += sum(profile_memory[start_layer_id:end_layer_id]) * mem_coef
+            stage_memory.append(cur_stage_memory_demand)
+
+        return stage_memory
+    
+    def _get_stage_memory_demand2(self, layer_partition: List[int], strategies: List[Tuple[int, int]],
+                                device_group: List[int], device_types: List[str], gbs: int, batches: int, cache,
+                                mem_coef: float = 5.0) -> List[float]:
+        @lru_cache(maxsize=32)
+        def calculate_profile_memory(device_type: str, tp_deg: int, bs: int, start_layer: int, end_layer: int) -> float:
+            profile_memory = self.profile_data[f'DeviceType.{device_type}'][f'tp{tp_deg}_bs{bs}']['memory']
+            return sum(profile_memory[start_layer:end_layer]) * mem_coef
+
+        @lru_cache(maxsize=32)
+        def calculate_hetero_memory(device_type: str, tp_deg: int, h_mbs: int, start_layer: int, end_layer: int) -> float:
+            memory = 0.001
+            if h_mbs == 0:
+                return memory
+                
+            comb_h_mbs = [2 ** j for j in range(int(math.log2(h_mbs)), -1, -1) if h_mbs & 2 ** j]
+            for slice_h_mbs in comb_h_mbs:
+                memory += calculate_profile_memory(device_type, tp_deg, slice_h_mbs, start_layer, end_layer)
+            return memory
+
+        # Pre-calculate device groups for each stage
+        stage_memory = []
+        for stage_id, strategy in enumerate(strategies):
+            dp_deg, tp_deg = strategy
+            start_rank = sum(device_group[:stage_id])
+            end_rank = sum(device_group[:stage_id + 1])
+            cur_device_types = tuple([device_types[rank] for rank in range(start_rank, end_rank)])
+            print("Testing Mapping:", cur_device_types, tuple(layer_partition[1][stage_id]))
+            start_layer_id, end_layer_id = layer_partition[0][stage_id], layer_partition[0][stage_id + 1]
+            cur_stage_memory_demand = 0.001
+            if len(set(cur_device_types)) == 1:
+                bs = gbs // batches // dp_deg
+                stage_mapping = (cur_device_types, tuple(layer_partition[1][stage_id]), tp_deg, bs)
+                memory = cache[stage_mapping]
+                if memory != 0:
+                    cur_stage_memory_demand = memory
+                    # print("Homo Cache Hit")
+                else:
+                    profile_memory = self.profile_data[f'DeviceType.{device_types[0]}'][f'tp{tp_deg}_bs{bs}']['memory']
+                    cur_stage_memory_demand += sum(profile_memory[start_layer_id:end_layer_id]) * mem_coef
+                    cache[stage_mapping] = cur_stage_memory_demand
+            else:
+                data_load_balancer = DataLoadBalancer(self.profile_data, self.model_config)
+                hetero_bs = data_load_balancer.partition_data(device_types, strategy, gbs // batches)
+                for h_mbs in hetero_bs:
+                    # if h_mbs > 4:
+                    #     continue
+                    comb_h_mbs = [2 ** j for j in range(int(math.log2(h_mbs)) if h_mbs != 0 else 0, -1, -1) if h_mbs & 2 ** j]
+                    stage_mapping = (cur_device_types, tuple(layer_partition[1][stage_id]), tp_deg, tuple(comb_h_mbs))
+                    memory = cache[stage_mapping]
+                    if memory != 0:
+                        cur_stage_memory_demand = memory
+                        print("Hetero Cache Hit")
+                    else:
+                        cur_stage_memory_demand = sum(
+                            calculate_hetero_memory(device_types[0], tp_deg, h_mbs, start_layer_id, end_layer_id)
+                            for h_mbs in hetero_bs
+                        )
+                        print("Hetero Cache Miss")
+                        # for slice_h_mbs in comb_h_mbs:
+                        #     profile_memory = self.profile_data[f'DeviceType.{device_types[0]}'][f'tp{tp_deg}_bs{slice_h_mbs}']['memory']
+                        #     cur_stage_memory_demand += sum(profile_memory[start_layer_id:end_layer_id]) * mem_coef
+                        cache[stage_mapping] = cur_stage_memory_demand
             stage_memory.append(cur_stage_memory_demand)
 
         return stage_memory
@@ -133,29 +196,33 @@ class LayerLoadBalancer:
         device_types = self._device_types_by_node_sequence(plan.node_sequence)
 
         cur_partition_attempt = 1
+        failed_memory_stage = []
         while cur_partition_attempt <= max_partition_attempts:
             layer_partition, stage_compute_demand = self._partition_layers_by_compute_performance(stage_compute_performance)
-            stage_memory_demand = self._get_stage_memory_demand(layer_partition, strategies, plan.device_groups,
-                                                                device_types, plan.gbs, plan.batches, cache)
+            stage_memory_demand = self._get_stage_memory_demand(layer_partition, strategies, plan.device_groups, device_types, plan.gbs, plan.batches)
+            # stage_memory_demand = self._get_stage_memory_demand2(layer_partition, strategies, plan.device_groups, device_types, plan.gbs, plan.batches, cache)
             memory_exceeded, memory_state = self._detect_out_of_memory(stage_memory_demand, stage_memory_capacity)
             if cur_partition_attempt > 1:
                 print("new partition:", layer_partition[1])
             print(f'layer_partition: {layer_partition[0]}')
             print(f'stage_memory_demand: {stage_memory_demand}, memory_state: {memory_state}')
             if not memory_exceeded:
-                return layer_partition[0], cur_partition_attempt, memory_state
+                return layer_partition[0], cur_partition_attempt, memory_state, failed_memory_stage
             print("MEMORY EXCEEDED")
+            if min(memory_state) < 0:
+                failed_memory_stage.append(memory_state.index(min(memory_state)))
+            print("failed_memory_stage:", failed_memory_stage)
             print("TESTING NEW PARTITION")
             print("current partition:", layer_partition[1])
             print("MP strategies:", strategies)
             stage_compute_performance = self._adj_compute_performance(stage_compute_performance, stage_memory_capacity,
                                                                       stage_memory_demand)
             if not stage_compute_performance:
-                return None, -1, None
+                return None, -1, None, failed_memory_stage
 
             cur_partition_attempt += 1
             print(f'adj_stage_compute_performance({cur_partition_attempt}): {stage_compute_performance}')
-        return None, -1, None
+        return None, -1, None, failed_memory_stage
 
 
 class DataLoadBalancer:
