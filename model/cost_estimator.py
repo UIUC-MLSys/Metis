@@ -213,6 +213,7 @@ class HeteroCostEstimator(CostEstimator):
 
             execution_cost = self._get_execution_cost(device_types, start_layer_id, end_layer_id, intra_strategy, plan.gbs, plan.batches)
             lens.append(execution_cost)
+            print("execution_cost: ", execution_cost)
 
             dp_deg, tp_deg = intra_strategy
             mbs = plan.gbs // dp_deg // plan.batches
@@ -238,5 +239,5 @@ class HeteroCostEstimator(CostEstimator):
               f'parameter_upate_costs: {max(parameter_update_costs)}, dp_cost: {max(dp_costs)}, pp_cost: {pp_cost}')
         time_cost = (execution_cost + fb_sync_cost + max(parameter_update_costs) + max(dp_costs) + pp_cost
                      + batch_generate_cost)
-
+        plan.costs.append(time_cost)
         return time_cost

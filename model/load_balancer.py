@@ -137,13 +137,19 @@ class LayerLoadBalancer:
             layer_partition, stage_compute_demand = self._partition_layers_by_compute_performance(stage_compute_performance)
             stage_memory_demand = self._get_stage_memory_demand(layer_partition, strategies, plan.device_groups,
                                                                 device_types, plan.gbs, plan.batches, cache)
+            utility = []
+            for i in zip(stage_memory_demand, stage_compute_performance):
+                utility.append((i[0] /  i[1]))
+            print(f'utility: {utility}')
+            utility_measure = sum(utility) / len(utility)
+            print(f'utility_measure: {utility_measure}')
             memory_exceeded, memory_state = self._detect_out_of_memory(stage_memory_demand, stage_memory_capacity)
             if cur_partition_attempt > 1:
                 print("new partition:", layer_partition[1])
             print(f'layer_partition: {layer_partition[0]}')
             print(f'stage_memory_demand: {stage_memory_demand}, memory_state: {memory_state}')
             if not memory_exceeded:
-                return layer_partition[0], cur_partition_attempt, memory_state
+                return layer_partition[0], cur_partition_attempt, memory_state, utility_measure
             print("MEMORY EXCEEDED")
             print("TESTING NEW PARTITION")
             print("current partition:", layer_partition[1])
@@ -151,11 +157,11 @@ class LayerLoadBalancer:
             stage_compute_performance = self._adj_compute_performance(stage_compute_performance, stage_memory_capacity,
                                                                       stage_memory_demand)
             if not stage_compute_performance:
-                return None, -1, None
+                return None, -1, None, utility_measure
 
             cur_partition_attempt += 1
             print(f'adj_stage_compute_performance({cur_partition_attempt}): {stage_compute_performance}')
-        return None, -1, None
+        return None, -1, None, utility_measure
 
 
 class DataLoadBalancer:

@@ -27,6 +27,7 @@ class InterStagePlan:
     num_stage: int
     batches: int
     gbs: int
+    costs: List[int]
 
 
 @dataclass
@@ -35,6 +36,7 @@ class IntraStagePlan:
     memory_state: List[float]
     layer_partition: List[int]
     num_repartition: int
+    utility_measure: float
 
 
 class UniformPlanGenerator:
@@ -115,7 +117,7 @@ class InterStagePlanGenerator:
                                                                   max_permute_len=max_permute_len)
 
         self.curr = InterStagePlan(ns_idx=0, node_sequence=list(self.node_sequences[0]), dg_idx=0,
-                                   device_groups=self.device_groups[0], num_stage=1, batches=gbs+1, gbs=gbs)
+                                   device_groups=self.device_groups[0], num_stage=1, batches=gbs+1, gbs=gbs, costs=[])
 
     def _find_next_batches(self) -> int:
         batches = self.curr.batches -1
@@ -172,6 +174,7 @@ class InterStagePlanGenerator:
 
         self.curr.device_groups = self.device_groups[self.curr.dg_idx]
         self.curr.node_sequence = self.node_sequences[self.curr.ns_idx]
+        self.curr.costs = []
         return self.curr
 
 
@@ -188,7 +191,7 @@ class IntraStagePlanGenerator:
         self.max_bs = max_bs
         self.cache = cache
 
-        self.curr = IntraStagePlan(strategies=[], memory_state=[], layer_partition=[], num_repartition=0)
+        self.curr = IntraStagePlan(strategies=[], memory_state=[], layer_partition=[], num_repartition=0, utility_measure=0.0)
 
     @property
     def has_next(self) -> bool:
@@ -213,7 +216,7 @@ class IntraStagePlanGenerator:
                 print(f'stage_memory_capacity: {stage_memory_capacity}')
                 print(f'stage_compute_performance: {intra_stage_compute_performance}')
 
-                layer_partition, num_repartition, memory_state = (
+                layer_partition, num_repartition, memory_state, utility_measure = (
                     self.layer_load_balancer.partition_layer(self.inter_stage_plan, self.curr.strategies,
                                                              intra_stage_compute_performance, stage_memory_capacity, self.cache))
 
@@ -222,9 +225,11 @@ class IntraStagePlanGenerator:
                     self.curr.layer_partition = layer_partition
                     self.curr.memory_state = memory_state
                     self.curr.num_repartition = num_repartition
+                    self.curr.utility_measure = utility_measure
                     return True
                 else:
                     self.curr.memory_state = memory_state
+                    self.curr.utility_measure = utility_measure
                     continue
 
     def next(self) -> IntraStagePlan:
